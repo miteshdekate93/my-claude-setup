@@ -1,0 +1,630 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Claude Code Setup Script
+# Run this on any new Mac to restore your full Claude Code configuration.
+# Usage: bash my-claude-setup.sh
+
+echo "Setting up Claude Code configuration..."
+
+# ── ~/.claude/settings.json ──────────────────────────────────────────────────
+mkdir -p "$HOME/.claude"
+cat > "$HOME/.claude/settings.json" << 'EOF'
+{
+  "voiceEnabled": true,
+  "extraKnownMarketplaces": {
+    "everything-claude-code": {
+      "source": {
+        "source": "github",
+        "repo": "affaan-m/everything-claude-code"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "everything-claude-code@everything-claude-code": true
+  },
+  "disabledMcpServers": ["railway", "vercel"]
+}
+EOF
+
+# ── ~/.claude/rules/ ──────────────────────────────────────────────────────────
+mkdir -p "$HOME/.claude/rules"
+
+cat > "$HOME/.claude/rules/agents.md" << 'EOF'
+# Agent Orchestration
+
+## Available Agents
+
+Located in `~/.claude/agents/`:
+
+| Agent | Purpose | When to Use |
+|-------|---------|-------------|
+| planner | Implementation planning | Complex features, refactoring |
+| architect | System design | Architectural decisions |
+| tdd-guide | Test-driven development | New features, bug fixes |
+| code-reviewer | Code review | After writing code |
+| security-reviewer | Security analysis | Before commits |
+| build-error-resolver | Fix build errors | When build fails |
+| e2e-runner | E2E testing | Critical user flows |
+| refactor-cleaner | Dead code cleanup | Code maintenance |
+| doc-updater | Documentation | Updating docs |
+| rust-reviewer | Rust code review | Rust projects |
+
+## Immediate Agent Usage
+
+No user prompt needed:
+1. Complex feature requests - Use **planner** agent
+2. Code just written/modified - Use **code-reviewer** agent
+3. Bug fix or new feature - Use **tdd-guide** agent
+4. Architectural decision - Use **architect** agent
+
+## Parallel Task Execution
+
+ALWAYS use parallel Task execution for independent operations:
+
+```markdown
+# GOOD: Parallel execution
+Launch 3 agents in parallel:
+1. Agent 1: Security analysis of auth module
+2. Agent 2: Performance review of cache system
+3. Agent 3: Type checking of utilities
+
+# BAD: Sequential when unnecessary
+First agent 1, then agent 2, then agent 3
+```
+
+## Multi-Perspective Analysis
+
+For complex problems, use split role sub-agents:
+- Factual reviewer
+- Senior engineer
+- Security expert
+- Consistency reviewer
+- Redundancy checker
+EOF
+
+cat > "$HOME/.claude/rules/coding-style.md" << 'EOF'
+# Coding Style
+
+## Immutability (CRITICAL)
+
+ALWAYS create new objects, NEVER mutate existing ones:
+
+```
+// Pseudocode
+WRONG:  modify(original, field, value) → changes original in-place
+CORRECT: update(original, field, value) → returns new copy with change
+```
+
+Rationale: Immutable data prevents hidden side effects, makes debugging easier, and enables safe concurrency.
+
+## File Organization
+
+MANY SMALL FILES > FEW LARGE FILES:
+- High cohesion, low coupling
+- 200-400 lines typical, 800 max
+- Extract utilities from large modules
+- Organize by feature/domain, not by type
+
+## Error Handling
+
+ALWAYS handle errors comprehensively:
+- Handle errors explicitly at every level
+- Provide user-friendly error messages in UI-facing code
+- Log detailed error context on the server side
+- Never silently swallow errors
+
+## Input Validation
+
+ALWAYS validate at system boundaries:
+- Validate all user input before processing
+- Use schema-based validation where available
+- Fail fast with clear error messages
+- Never trust external data (API responses, user input, file content)
+
+## Code Quality Checklist
+
+Before marking work complete:
+- [ ] Code is readable and well-named
+- [ ] Functions are small (<50 lines)
+- [ ] Files are focused (<800 lines)
+- [ ] No deep nesting (>4 levels)
+- [ ] Proper error handling
+- [ ] No hardcoded values (use constants or config)
+- [ ] No mutation (immutable patterns used)
+EOF
+
+cat > "$HOME/.claude/rules/development-workflow.md" << 'EOF'
+# Development Workflow
+
+> This file extends [common/git-workflow.md](./git-workflow.md) with the full feature development process that happens before git operations.
+
+The Feature Implementation Workflow describes the development pipeline: research, planning, TDD, code review, and then committing to git.
+
+## Feature Implementation Workflow
+
+0. **Research & Reuse** _(mandatory before any new implementation)_
+   - **GitHub code search first:** Run `gh search repos` and `gh search code` to find existing implementations, templates, and patterns before writing anything new.
+   - **Library docs second:** Use Context7 or primary vendor docs to confirm API behavior, package usage, and version-specific details before implementing.
+   - **Exa only when the first two are insufficient:** Use Exa for broader web research or discovery after GitHub search and primary docs.
+   - **Check package registries:** Search npm, PyPI, crates.io, and other registries before writing utility code. Prefer battle-tested libraries over hand-rolled solutions.
+   - **Search for adaptable implementations:** Look for open-source projects that solve 80%+ of the problem and can be forked, ported, or wrapped.
+   - Prefer adopting or porting a proven approach over writing net-new code when it meets the requirement.
+
+1. **Plan First**
+   - Use **planner** agent to create implementation plan
+   - Generate planning docs before coding: PRD, architecture, system_design, tech_doc, task_list
+   - Identify dependencies and risks
+   - Break down into phases
+
+2. **TDD Approach**
+   - Use **tdd-guide** agent
+   - Write tests first (RED)
+   - Implement to pass tests (GREEN)
+   - Refactor (IMPROVE)
+   - Verify 80%+ coverage
+
+3. **Code Review**
+   - Use **code-reviewer** agent immediately after writing code
+   - Address CRITICAL and HIGH issues
+   - Fix MEDIUM issues when possible
+
+4. **Commit & Push**
+   - Detailed commit messages
+   - Follow conventional commits format
+   - See [git-workflow.md](./git-workflow.md) for commit message format and PR process
+EOF
+
+cat > "$HOME/.claude/rules/git-workflow.md" << 'EOF'
+# Git Workflow
+
+## Commit Message Format
+```
+<type>: <description>
+
+<optional body>
+```
+
+Types: feat, fix, refactor, docs, test, chore, perf, ci
+
+Note: Attribution disabled globally via ~/.claude/settings.json.
+
+## Pull Request Workflow
+
+When creating PRs:
+1. Analyze full commit history (not just latest commit)
+2. Use `git diff [base-branch]...HEAD` to see all changes
+3. Draft comprehensive PR summary
+4. Include test plan with TODOs
+5. Push with `-u` flag if new branch
+
+> For the full development process (planning, TDD, code review) before git operations,
+> see [development-workflow.md](./development-workflow.md).
+EOF
+
+cat > "$HOME/.claude/rules/hooks.md" << 'EOF'
+# Hooks System
+
+## Hook Types
+
+- **PreToolUse**: Before tool execution (validation, parameter modification)
+- **PostToolUse**: After tool execution (auto-format, checks)
+- **Stop**: When session ends (final verification)
+
+## Auto-Accept Permissions
+
+Use with caution:
+- Enable for trusted, well-defined plans
+- Disable for exploratory work
+- Never use dangerously-skip-permissions flag
+- Configure `allowedTools` in `~/.claude.json` instead
+
+## TodoWrite Best Practices
+
+Use TodoWrite tool to:
+- Track progress on multi-step tasks
+- Verify understanding of instructions
+- Enable real-time steering
+- Show granular implementation steps
+
+Todo list reveals:
+- Out of order steps
+- Missing items
+- Extra unnecessary items
+- Wrong granularity
+- Misinterpreted requirements
+EOF
+
+cat > "$HOME/.claude/rules/patterns.md" << 'EOF'
+# Common Patterns
+
+## Skeleton Projects
+
+When implementing new functionality:
+1. Search for battle-tested skeleton projects
+2. Use parallel agents to evaluate options:
+   - Security assessment
+   - Extensibility analysis
+   - Relevance scoring
+   - Implementation planning
+3. Clone best match as foundation
+4. Iterate within proven structure
+
+## Design Patterns
+
+### Repository Pattern
+
+Encapsulate data access behind a consistent interface:
+- Define standard operations: findAll, findById, create, update, delete
+- Concrete implementations handle storage details (database, API, file, etc.)
+- Business logic depends on the abstract interface, not the storage mechanism
+- Enables easy swapping of data sources and simplifies testing with mocks
+
+### API Response Format
+
+Use a consistent envelope for all API responses:
+- Include a success/status indicator
+- Include the data payload (nullable on error)
+- Include an error message field (nullable on success)
+- Include metadata for paginated responses (total, page, limit)
+EOF
+
+cat > "$HOME/.claude/rules/performance.md" << 'EOF'
+# Performance Optimization
+
+## Model Selection Strategy
+
+**Haiku 4.5** (90% of Sonnet capability, 3x cost savings):
+- Lightweight agents with frequent invocation
+- Pair programming and code generation
+- Worker agents in multi-agent systems
+
+**Sonnet 4.6** (Best coding model):
+- Main development work
+- Orchestrating multi-agent workflows
+- Complex coding tasks
+
+**Opus 4.5** (Deepest reasoning):
+- Complex architectural decisions
+- Maximum reasoning requirements
+- Research and analysis tasks
+
+## Context Window Management
+
+Avoid last 20% of context window for:
+- Large-scale refactoring
+- Feature implementation spanning multiple files
+- Debugging complex interactions
+
+Lower context sensitivity tasks:
+- Single-file edits
+- Independent utility creation
+- Documentation updates
+- Simple bug fixes
+
+## Extended Thinking + Plan Mode
+
+Extended thinking is enabled by default, reserving up to 31,999 tokens for internal reasoning.
+
+Control extended thinking via:
+- **Toggle**: Option+T (macOS) / Alt+T (Windows/Linux)
+- **Config**: Set `alwaysThinkingEnabled` in `~/.claude/settings.json`
+- **Budget cap**: `export MAX_THINKING_TOKENS=10000`
+- **Verbose mode**: Ctrl+O to see thinking output
+
+For complex tasks requiring deep reasoning:
+1. Ensure extended thinking is enabled (on by default)
+2. Enable **Plan Mode** for structured approach
+3. Use multiple critique rounds for thorough analysis
+4. Use split role sub-agents for diverse perspectives
+
+## Build Troubleshooting
+
+If build fails:
+1. Use **build-error-resolver** agent
+2. Analyze error messages
+3. Fix incrementally
+4. Verify after each fix
+EOF
+
+cat > "$HOME/.claude/rules/security.md" << 'EOF'
+# Security Guidelines
+
+## Mandatory Security Checks
+
+Before ANY commit:
+- [ ] No hardcoded secrets (API keys, passwords, tokens)
+- [ ] All user inputs validated
+- [ ] SQL injection prevention (parameterized queries)
+- [ ] XSS prevention (sanitized HTML)
+- [ ] CSRF protection enabled
+- [ ] Authentication/authorization verified
+- [ ] Rate limiting on all endpoints
+- [ ] Error messages don't leak sensitive data
+
+## Secret Management
+
+- NEVER hardcode secrets in source code
+- ALWAYS use environment variables or a secret manager
+- Validate that required secrets are present at startup
+- Rotate any secrets that may have been exposed
+
+## Security Response Protocol
+
+If security issue found:
+1. STOP immediately
+2. Use **security-reviewer** agent
+3. Fix CRITICAL issues before continuing
+4. Rotate any exposed secrets
+5. Review entire codebase for similar issues
+EOF
+
+cat > "$HOME/.claude/rules/testing.md" << 'EOF'
+# Testing Requirements
+
+## Minimum Test Coverage: 80%
+
+Test Types (ALL required):
+1. **Unit Tests** - Individual functions, utilities, components
+2. **Integration Tests** - API endpoints, database operations
+3. **E2E Tests** - Critical user flows (framework chosen per language)
+
+## Test-Driven Development
+
+MANDATORY workflow:
+1. Write test first (RED)
+2. Run test - it should FAIL
+3. Write minimal implementation (GREEN)
+4. Run test - it should PASS
+5. Refactor (IMPROVE)
+6. Verify coverage (80%+)
+
+## Troubleshooting Test Failures
+
+1. Use **tdd-guide** agent
+2. Check test isolation
+3. Verify mocks are correct
+4. Fix implementation, not tests (unless tests are wrong)
+
+## Agent Support
+
+- **tdd-guide** - Use PROACTIVELY for new features, enforces write-tests-first
+EOF
+
+# ── CLAUDE.md in current directory ───────────────────────────────────────────
+cat > "$PWD/CLAUDE.md" << 'EOF'
+# Workflow Orchestration
+
+## 1. Plan Mode Default
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately – don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
+
+## 2. Subagent Strategy
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
+
+## 3. Self-Improvement Loop
+- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
+
+## 4. Verification Before Done
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
+
+## 5. Demand Elegance (Balanced)
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes – don't over-engineer
+- Challenge your own work before presenting it
+
+## 6. Autonomous Bug Fixing
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests – then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
+
+---
+
+# Code Style: Readable & Explainable
+
+**Principle:** Simple code > Clever code. You must be able to explain it in 2 minutes.
+
+## Functions: Short & Clear
+- **Max 20 lines per function** — else break it into smaller ones
+- **One responsibility** — if it does A and B, split it
+- **Clear names** — not `u`, `d`, `x` — use `user`, `document`, `count`
+
+```typescript
+// ✅ GOOD: Clear intent, easy to test, explainable
+function canUserDeleteDocument(user: User, document: Document): boolean {
+  const isDocumentOwner = user.id === document.ownerId;
+  const isAdmin = user.role === 'admin';
+  return isDocumentOwner || isAdmin;
+}
+
+// ❌ AVOID: Nested logic, hard to explain
+function canDel(u: User, d: Document) {
+  return u.id === d.ownerId ? true : u.role === 'admin' ? true : false;
+}
+```
+
+## Variable Names: Explicit, Readable
+```typescript
+// ✅ GOOD: Anyone reading this aloud understands it
+const userHasAccessToSharedDocument = user.sharedDocuments.includes(docId);
+const documentOwnerEmail = document.owner.email;
+const maxLoginAttemptsBeforeLockout = 5;
+
+// ❌ AVOID: Abbreviations, single letters
+const hasAccess = u.docs.includes(d);
+const ownerMail = doc.o.e;
+const max = 5;
+```
+
+## Comments: Explain WHY, Not WHAT
+```typescript
+// ✅ GOOD: Why is this needed? Business rule? Technical constraint?
+const MAX_LOGIN_ATTEMPTS = 5;  // Security: Prevent brute-force attacks
+
+// ✅ GOOD: Complex logic gets a one-liner before the code
+// Only process documents modified in last 24h to avoid re-indexing entire dataset
+const recentDocuments = documents.filter(d => {
+  const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+  return d.modifiedAt > oneDayAgo;
+});
+
+// ❌ AVOID: Comments that just repeat code
+const user = getUserById(id);  // Get user by ID
+```
+
+## Error Messages: Helpful
+```typescript
+// ✅ GOOD: User knows what went wrong + how to fix it
+if (!req.body.userEmail) {
+  return res.status(400).json({
+    error: 'Missing userEmail in request body',
+    example: { userEmail: 'john@example.com' }
+  });
+}
+
+// ❌ AVOID: Cryptic errors
+if (!req.body.email) {
+  return res.status(400).json({ error: 'Invalid input' });
+}
+```
+
+---
+
+# ECC Commands
+
+When implementing features, use these ECC agents to keep code readable:
+
+## `/plan` — Structure Before Code
+**When:** Starting a feature or fixing a bug
+**What it does:** Breaks down task into clear steps
+**Why:** Forces clarity. You can't explain it = it's not clear yet
+
+## `/tdd` — Tests First (Forces Clarity)
+**When:** Implementing logic (permissions, calculations, business rules)
+**What it does:** Enforces write-tests-first workflow
+**Why:** Tests = executable documentation. Forces you to think clearly.
+
+Workflow:
+1. Write failing test (RED)
+2. Implement minimal code (GREEN)
+3. Refactor for clarity (IMPROVE)
+4. Verify 80%+ coverage
+
+## `/code-review` — Catch Issues Early
+**When:** Before you submit/push
+**What it does:** Checks for unclear names, missing tests, over-engineering, security gaps
+**Why:** Catches issues you would catch if you had 2 hours to review your own code
+
+Catches:
+- Hardcoded values (should be constants or env vars)
+- Unclear variable names
+- Missing error handling
+- N+1 database queries
+- Missing test coverage
+
+## `/build-fix` — Resolve Errors Fast
+**When:** You hit compilation/build errors
+**What it does:** Analyzes error, suggests fix
+**Why:** Saves 5–10 min per error vs. Googling
+
+## `/security-scan` — Verify No Vulnerabilities
+**When:** Before submitting work samples or going to production
+**What it does:** Checks for hardcoded secrets, auth bypasses, SQL injection, weak validation
+**Why:** Catches security issues before review — clean report = impressive
+
+---
+
+# Daily Workflow
+
+## New Feature (2–3 hours)
+```
+1. /plan "Build feature"          (10 min)  → Clear breakdown
+2. Read plan aloud to yourself     (5 min)  → If confused, re-plan
+3. /tdd "Logic test"               (45 min) → Tests force clarity
+4. Implement minimal code          (30 min) → Just make tests pass
+5. /code-review                    (10 min) → Catch issues early
+6. /security-scan (if needed)      (5 min)  → Verify safety
+7. Submit                          (5 min)
+```
+
+## Bug Fix (30 min)
+```
+1. /plan "Reproduce bug, plan fix" (5 min)
+2. Write failing test              (5 min)
+3. Fix code                        (15 min)
+4. /code-review                    (5 min)
+5. Submit
+```
+
+## When You Get Stuck
+```
+/build-fix          → If compilation error
+/code-review        → If logic error or unclear code
+Check tasks/lessons.md → Is this a pattern you've seen before?
+```
+
+---
+
+# Task Management
+
+1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Add review section to `tasks/todo.md`
+6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+
+---
+
+# Core Principles
+
+- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+- **Readable > Clever**: Code anyone can understand and maintain.
+- **Explainable**: If you can't explain it in 2 minutes, simplify it.
+EOF
+
+# ── tasks/ in current directory ───────────────────────────────────────────────
+mkdir -p "$PWD/tasks"
+
+cat > "$PWD/tasks/todo.md" << 'EOF'
+# Todo
+
+## Current Tasks
+
+- [ ] Add tasks here
+
+## Completed
+
+EOF
+
+cat > "$PWD/tasks/lessons.md" << 'EOF'
+# Lessons Learned
+
+Track patterns and corrections here to avoid repeating mistakes.
+
+## Format
+
+**Lesson:** What went wrong or what worked well
+**Why:** Root cause or reason
+**Rule:** What to do differently next time
+
+---
+
+EOF
+
+echo "Setup complete!"
