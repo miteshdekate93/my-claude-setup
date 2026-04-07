@@ -505,45 +505,46 @@ if (!req.body.email) {
 
 # ECC Commands
 
-When implementing features, use these ECC agents to keep code readable:
+Skills from the \`everything-claude-code\` marketplace. Invoke as \`/skill-name\` (short form) — no \`everything-claude-code:\` prefix needed.
 
-## `/plan` — Structure Before Code
-**When:** Starting a feature or fixing a bug
-**What it does:** Breaks down task into clear steps
-**Why:** Forces clarity. You can't explain it = it's not clear yet
+## Planning & Design
+- \`/plan\` — Structure and break down a feature before coding
+- \`/blueprint\` — Architecture blueprint for new projects
 
-## `/tdd` — Tests First (Forces Clarity)
-**When:** Implementing logic (permissions, calculations, business rules)
-**What it does:** Enforces write-tests-first workflow
-**Why:** Tests = executable documentation. Forces you to think clearly.
+## Testing
+- \`/tdd\` — Test-driven development (write tests first, RED → GREEN → IMPROVE)
+- \`/e2e\` — End-to-end tests for critical user flows
 
-Workflow:
-1. Write failing test (RED)
-2. Implement minimal code (GREEN)
-3. Refactor for clarity (IMPROVE)
-4. Verify 80%+ coverage
+## Code Review (language-specific)
+- \`/python-review\` — Python code review
+- \`/go-review\` — Go code review
+- \`/rust-review\` — Rust code review
+- \`/kotlin-review\` — Kotlin/Android code review
+- \`/flutter-dart-code-review\` — Flutter/Dart code review
 
-## `/code-review` — Catch Issues Early
-**When:** Before you submit/push
-**What it does:** Checks for unclear names, missing tests, over-engineering, security gaps
-**Why:** Catches issues you would catch if you had 2 hours to review your own code
+## Security
+- \`/security-scan\` — Scan for hardcoded secrets, injection, auth bypasses
+- \`/security-review\` — Deeper security analysis
 
-Catches:
-- Hardcoded values (should be constants or env vars)
-- Unclear variable names
-- Missing error handling
-- N+1 database queries
-- Missing test coverage
+## Build & Fix
+- \`/go-build\` — Fix Go build/vet errors
+- \`/rust-build\` — Fix Rust/Cargo errors
+- \`/kotlin-build\` — Fix Kotlin/Gradle errors
+- \`/gradle-build\` — Fix Gradle build errors
 
-## `/build-fix` — Resolve Errors Fast
-**When:** You hit compilation/build errors
-**What it does:** Analyzes error, suggests fix
-**Why:** Saves 5–10 min per error vs. Googling
+## Other
+- \`/docs\` — Update documentation and codemaps
+- \`/prune\` — Remove dead code and unused dependencies
+- \`/prompt-optimize\` — Optimize prompts for LLM pipelines
 
-## `/security-scan` — Verify No Vulnerabilities
-**When:** Before submitting work samples or going to production
-**What it does:** Checks for hardcoded secrets, auth bypasses, SQL injection, weak validation
-**Why:** Catches security issues before review — clean report = impressive
+## Core Workflow Skills
+**When:** Starting a feature or fixing a bug — use this order:
+```
+1. /plan "Build feature"          → Clear breakdown
+2. /tdd "Logic test"              → Tests force clarity
+3. /python-review (or language)   → Catch issues early
+4. /security-scan (if needed)     → Verify safety
+```
 
 ---
 
@@ -551,29 +552,29 @@ Catches:
 
 ## New Feature (2–3 hours)
 ```
-1. /plan "Build feature"          (10 min)  → Clear breakdown
-2. Read plan aloud to yourself     (5 min)  → If confused, re-plan
-3. /tdd "Logic test"               (45 min) → Tests force clarity
-4. Implement minimal code          (30 min) → Just make tests pass
-5. /code-review                    (10 min) → Catch issues early
-6. /security-scan (if needed)      (5 min)  → Verify safety
-7. Submit                          (5 min)
+1. /plan "Build feature"               (10 min)  → Clear breakdown
+2. Read plan aloud to yourself          (5 min)  → If confused, re-plan
+3. /tdd "Logic test"                   (45 min)  → Tests force clarity
+4. Implement minimal code              (30 min)  → Just make tests pass
+5. /python-review (or language-review) (10 min)  → Catch issues early
+6. /security-scan (if needed)           (5 min)  → Verify safety
+7. Submit                               (5 min)
 ```
 
 ## Bug Fix (30 min)
 ```
-1. /plan "Reproduce bug, plan fix" (5 min)
-2. Write failing test              (5 min)
-3. Fix code                        (15 min)
-4. /code-review                    (5 min)
+1. /plan "Reproduce bug, plan fix"     (5 min)
+2. Write failing test                  (5 min)
+3. Fix code                           (15 min)
+4. /python-review (or language-review) (5 min)
 5. Submit
 ```
 
 ## When You Get Stuck
 ```
-/build-fix          → If compilation error
-/code-review        → If logic error or unclear code
-Check tasks/lessons.md → Is this a pattern you've seen before?
+/go-build / /rust-build / /kotlin-build  → If compilation error (use your language)
+/python-review (or language-review)      → If logic error or unclear code
+Check tasks/lessons.md                   → Is this a pattern you've seen before?
 ```
 
 ---
