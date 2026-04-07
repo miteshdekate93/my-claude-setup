@@ -617,6 +617,71 @@ Track patterns and corrections here to avoid repeating mistakes.
 
 EOF
 
+# ── GitNexus skill (/gitnexus-init) ──────────────────────────────────────────
+mkdir -p "$HOME/.claude/commands"
+cat > "$HOME/.claude/commands/gitnexus-init.md" << 'EOF'
+---
+description: Initialize GitNexus MCP in the current project for codebase intelligence (impact analysis, dependency chains, 360° symbol context).
+---
+
+# /gitnexus-init
+
+## Purpose
+
+Set up GitNexus in the current project so Claude has deep code intelligence — dependency graphs, impact analysis ("what breaks if I change X"), and 360° context for any symbol. Works via MCP with 16 tools available automatically in every Claude Code session after setup.
+
+## What It Does
+
+1. Adds GitNexus as a global MCP server (`claude mcp add`)
+2. Indexes the current project codebase (`gitnexus analyze`)
+3. Confirms the MCP tools are available
+
+## Workflow
+
+Run the following steps in order:
+
+### Step 1 — Add GitNexus MCP server (one-time global setup)
+
+Check if already configured:
+```bash
+claude mcp list
+```
+
+If `gitnexus` is not listed, add it:
+
+**macOS/Linux:**
+```bash
+claude mcp add gitnexus -- npx -y gitnexus@latest mcp
+```
+
+**Windows:**
+```bash
+claude mcp add gitnexus -- cmd /c npx -y gitnexus@latest mcp
+```
+
+### Step 2 — Index the current project
+
+```bash
+npx gitnexus analyze
+```
+
+This indexes the codebase, installs agent skills, registers Claude Code hooks, and creates context files. Re-run after large refactors or when the index feels stale.
+
+### Step 3 — Confirm
+
+Tell the user:
+- GitNexus MCP is active with 16 code intelligence tools
+- Claude will now automatically use dependency/impact context when analyzing, refactoring, or debugging code in this project
+- Re-run `/gitnexus-init` (step 2 only) after major refactors to refresh the index
+
+## When to Use
+
+- Starting work on an unfamiliar or large codebase
+- Before a significant refactor — get impact analysis first
+- When Claude seems to miss cross-file dependencies
+- On any project where "what uses this function?" matters
+EOF
+
 # ── Symlink ECC commands to ~/.claude/commands/ (short-form slash commands) ───
 # This makes /tdd, /plan, /code-review etc work without the everything-claude-code: prefix
 mkdir -p "$HOME/.claude/commands"
