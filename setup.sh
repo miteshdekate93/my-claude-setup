@@ -12,17 +12,6 @@ mkdir -p "$HOME/.claude"
 cat > "$HOME/.claude/settings.json" << 'EOF'
 {
   "voiceEnabled": true,
-  "extraKnownMarketplaces": {
-    "everything-claude-code": {
-      "source": {
-        "source": "github",
-        "repo": "affaan-m/everything-claude-code"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true
-  },
   "disabledMcpServers": ["railway", "vercel"]
 }
 EOF
@@ -627,5 +616,18 @@ Track patterns and corrections here to avoid repeating mistakes.
 ---
 
 EOF
+
+# ── Symlink ECC commands to ~/.claude/commands/ (short-form slash commands) ───
+# This makes /tdd, /plan, /code-review etc work without the everything-claude-code: prefix
+mkdir -p "$HOME/.claude/commands"
+ECC_COMMANDS="$HOME/.claude/plugins/marketplaces/everything-claude-code/commands"
+if [ -d "$ECC_COMMANDS" ]; then
+  for f in "$ECC_COMMANDS"/*.md; do
+    ln -sf "$f" "$HOME/.claude/commands/$(basename "$f")"
+  done
+  echo "Linked ECC commands to ~/.claude/commands/"
+else
+  echo "Warning: ECC commands not found at $ECC_COMMANDS (install ECC plugin first)"
+fi
 
 echo "Setup complete!"

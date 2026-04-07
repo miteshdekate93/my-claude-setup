@@ -11,17 +11,6 @@ New-Item -ItemType Directory -Force -Path $claudeDir | Out-Null
 @'
 {
   "voiceEnabled": true,
-  "extraKnownMarketplaces": {
-    "everything-claude-code": {
-      "source": {
-        "source": "github",
-        "repo": "affaan-m/everything-claude-code"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true
-  },
   "disabledMcpServers": ["railway", "vercel"]
 }
 '@ | Set-Content -Encoding UTF8 "$claudeDir\settings.json"
