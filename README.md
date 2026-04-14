@@ -5,6 +5,7 @@ One-command setup to restore your full Claude Code configuration on any new mach
 Installs:
 - `~/.claude/settings.json` — voice, ECC marketplace, plugins
 - `~/.claude/rules/` — 11 rule files (agents, coding style, git workflow, testing, security, caveman, archon)
+- `~/.claude/commands/task.md` — `/task` slash command (full autonomous pipeline)
 - `CLAUDE.md` — project workflow instructions (written to current directory)
 - `tasks/todo.md` and `tasks/lessons.md` — task tracking files (written to current directory)
 - Archon CLI — automatic workflow engine for implement/fix/build tasks
@@ -52,6 +53,7 @@ After running either script, restart Claude Code.
 | `~/.claude/rules/testing.md` | TDD workflow, 80% coverage requirement |
 | `~/.claude/rules/caveman.md` | Always-on token compression (~65% fewer tokens, auto-active) |
 | `~/.claude/rules/archon.md` | Auto-dispatch implement/fix/build requests to Archon workflows |
+| `~/.claude/commands/task.md` | `/task` — full pipeline: plan → TDD → implement → review → security |
 | `~/.archon/config.yaml` | Archon config pointing to Claude binary |
 | `./CLAUDE.md` | Project-level workflow instructions |
 | `./tasks/todo.md` | Task tracking |
@@ -66,6 +68,28 @@ After running either script, restart Claude Code.
 Every Claude response is automatically compressed ~65% by dropping filler words, articles, and pleasantries while keeping full technical accuracy. Code, commits, and PRs are written normally — only prose is compressed. Longer sessions, lower cost, faster responses.
 
 Switch modes with `/caveman lite`, `/caveman full`, `/caveman ultra`. Stop with "normal mode".
+
+### `/task` — One Command for Everything
+
+```
+/task implement user authentication with JWT
+/task fix bug in the payment module
+/task refactor the database layer to use repository pattern
+/task fix issue #42
+/task review PR #17
+```
+
+`/task` classifies the request and routes automatically:
+
+| Request type | What happens |
+|-------------|-------------|
+| New feature / implement / build | Archon `archon-piv-loop` dispatched in background → creates PR |
+| Fix bug / fix issue #N | Archon `archon-fix-github-issue` dispatched in background → creates PR |
+| Review PR #N | Archon `archon-smart-pr-review` dispatched in background |
+| Refactor / simple fix | Inline: plan → TDD → implement → code-review → security check |
+| Question / explain | Answered directly, no pipeline |
+
+---
 
 ### Auto Workflow Engine (Archon)
 

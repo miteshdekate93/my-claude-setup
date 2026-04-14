@@ -785,14 +785,86 @@ If missing, tell user:
 Always use `--branch` flag. Never use `--no-worktree` unless user explicitly says "no worktree".
 '@ | Set-Content -Encoding UTF8 "$rulesDir\archon.md"
 
+# ── /task command — full pipeline orchestrator ────────────────────────────────
+@'
+---
+description: >
+  Autonomous full dev pipeline in one command. Routes complex tasks to Archon (plan+implement+validate+PR)
+  or runs inline pipeline (plan -> TDD -> implement -> code-review -> security). Zero babysitting.
+argument-hint: "<what to implement, fix, or build>"
+---
+
+# /task $ARGUMENTS
+
+Execute the full development pipeline autonomously. Do not ask for confirmation between phases.
+Caveman compression is active — responses terse but technically precise.
+
+---
+
+## Step 1 — Classify (do this silently, then act)
+
+| Task type | Route |
+|-----------|-------|
+| New feature / "implement X" / "build X" / "add X" | -> **Archon: `archon-piv-loop`** |
+| Bug fix / "fix issue #N" / "resolve #N" | -> **Archon: `archon-fix-github-issue`** |
+| "fix bug in X" (no issue #, needs investigation) | -> **Archon: `archon-fix-github-issue`** |
+| "review PR #N" | -> **Archon: `archon-smart-pr-review`** |
+| Refactor / rename / reorganize | -> **Inline pipeline** |
+| Simple <=2-file change or one-liner fix | -> **Inline pipeline** |
+| Question / explanation | -> Answer directly, skip pipeline |
+
+---
+
+## Route A — Archon (background, autonomous, creates PR)
+
+Run with `run_in_background: true` in Bash tool. Never block the conversation.
+
+After dispatching, report one line to user:
+> "Archon: `<workflow>` dispatched -> branch `<branch>`. Plan+implement+PR running autonomously. Monitor: `archon workflow status`"
+
+**Stop here** — Archon handles the full lifecycle. Do not re-implement in this session.
+
+---
+
+## Route B — Inline Pipeline (refactors, simple tasks, no PR needed)
+
+Work through all phases in order. One-line status update at each phase start.
+
+### Phase 1 — Plan
+Break down the task: what files change, what new behavior is, how to verify, any risks.
+Write numbered list. Show it. Confirm before proceeding.
+
+### Phase 2 — Tests First (RED)
+Write tests for expected behavior. Run them. Must FAIL before writing implementation.
+
+### Phase 3 — Implement (GREEN)
+Minimal code to pass tests. Functions <=20 lines, immutable patterns, explicit error handling.
+Run tests — all must pass before continuing.
+
+### Phase 4 — Code Review
+Check all changed files: unclear names, missing error handling, hardcoded values, logic errors.
+Fix CRITICAL/HIGH. Report MEDIUM but continue.
+
+### Phase 5 — Security (conditional)
+Skip: pure logic, UI, config. Run: auth, user input, APIs, DB, secrets.
+Check: no hardcoded secrets, inputs validated, SQL parameterized, no data leaks.
+
+### Phase 6 — Done
+One-sentence summary. Files changed. Tests added. Issues fixed.
+'@ | Set-Content -Encoding UTF8 "$commandsDir\task.md"
+
 # ── Archon CLI install ────────────────────────────────────────────────────────
-if (-not (Get-Command archon -ErrorAction SilentlyContinue)) {
+$archonPath = "$env:USERPROFILE\.local\bin\archon.exe"
+if (-not (Get-Command archon -ErrorAction SilentlyContinue) -and -not (Test-Path $archonPath)) {
     Write-Host "Installing Archon CLI..."
+    New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.local\bin" | Out-Null
     try {
-        irm https://archon.diy/install.ps1 | iex
-        Write-Host "Archon CLI installed."
+        $archonUrl = "https://github.com/coleam00/Archon/releases/latest/download/archon-windows-x64.exe"
+        Invoke-WebRequest -Uri $archonUrl -OutFile $archonPath
+        Write-Host "Archon CLI installed to $archonPath"
+        Write-Host "Add $env:USERPROFILE\.local\bin to your PATH if not already there."
     } catch {
-        Write-Host "Warning: Archon install failed. Run manually: irm https://archon.diy/install.ps1 | iex"
+        Write-Host "Warning: Archon install failed. Download manually from: https://github.com/coleam00/Archon/releases"
     }
 } else {
     Write-Host "Archon CLI already installed."

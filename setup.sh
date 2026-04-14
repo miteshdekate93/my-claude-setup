@@ -791,13 +791,134 @@ Always use `--branch` flag. Never use `--no-worktree` unless user explicitly say
 Each task gets its own isolated branch — no conflicts with main.
 EOF
 
+# ── /task command — full pipeline orchestrator ────────────────────────────────
+cat > "$HOME/.claude/commands/task.md" << 'EOF'
+---
+description: >
+  Autonomous full dev pipeline in one command. Routes complex tasks to Archon (plan+implement+validate+PR)
+  or runs inline pipeline (plan → TDD → implement → code-review → security). Zero babysitting.
+argument-hint: "<what to implement, fix, or build>"
+---
+
+# /task $ARGUMENTS
+
+Execute the full development pipeline autonomously. Do not ask for confirmation between phases.
+Caveman compression is active — responses terse but technically precise.
+
+---
+
+## Step 1 — Classify (do this silently, then act)
+
+| Task type | Route |
+|-----------|-------|
+| New feature / "implement X" / "build X" / "add X" | → **Archon: `archon-piv-loop`** |
+| Bug fix / "fix issue #N" / "resolve #N" | → **Archon: `archon-fix-github-issue`** |
+| "fix bug in X" (no issue #, needs investigation) | → **Archon: `archon-fix-github-issue`** |
+| "review PR #N" | → **Archon: `archon-smart-pr-review`** |
+| Refactor / rename / reorganize | → **Inline pipeline** |
+| Simple ≤2-file change or one-liner fix | → **Inline pipeline** |
+| Question / explanation | → Answer directly, skip pipeline |
+
+---
+
+## Route A — Archon (background, autonomous, creates PR)
+
+Run with `run_in_background: true` in Bash tool. Never block the conversation.
+
+```bash
+# Feature / new implementation:
+archon workflow run archon-piv-loop --branch feat/<short-slug> "$ARGUMENTS"
+
+# Bug fix:
+archon workflow run archon-fix-github-issue --branch fix/<short-slug> "$ARGUMENTS"
+
+# PR review:
+archon workflow run archon-smart-pr-review --branch review/pr-<N> "$ARGUMENTS"
+```
+
+After dispatching, report one line to user:
+> "Archon: `<workflow>` dispatched → branch `<branch>`. Plan+implement+PR running autonomously. Monitor: `archon workflow status`"
+
+**Stop here** — Archon handles the full lifecycle. Do not re-implement in this session.
+
+---
+
+## Route B — Inline Pipeline (refactors, simple tasks, no PR needed)
+
+Work through all phases in order. One-line status update at each phase start.
+
+### Phase 1 — Plan
+Break down the task:
+- What files change and why
+- What the new behavior is (before vs after)
+- How to verify it works
+- Any risks or dependencies
+
+Write a numbered list. Show it. Confirm it covers the request fully before proceeding.
+
+### Phase 2 — Tests First (RED)
+Write tests that describe the expected behavior. Run them. They must **FAIL** before you write implementation code.
+If tests pass before implementation: tests are wrong — fix them.
+Cover: happy path, error cases, edge cases relevant to the task.
+
+### Phase 3 — Implement (GREEN)
+Write minimal code to make all tests pass.
+Rules:
+- Functions ≤20 lines, one responsibility each
+- No mutation — create new objects, never modify in-place
+- Explicit error handling — never swallow errors silently
+- No hardcoded values — use constants or config
+
+Run tests after implementing. All must pass before continuing.
+
+### Phase 4 — Code Review
+Review all changed files. Check for:
+- Unclear names (variables, functions, files)
+- Missing error handling
+- Hardcoded values or magic numbers
+- Logic errors, missing edge cases
+- Unnecessary complexity (do simplest thing that works)
+
+Fix all CRITICAL and HIGH issues. Report MEDIUM issues but continue.
+
+### Phase 5 — Security Check (conditional)
+**Skip** if: pure logic change, UI styling, config tweak, renaming.
+**Run** if: auth, user input processing, API calls, database queries, file I/O, secret handling.
+
+Check:
+- No hardcoded secrets or API keys
+- All user inputs validated before use
+- SQL queries parameterized (no string concatenation)
+- No sensitive data in logs or error messages
+- Auth/authorization verified where applicable
+
+### Phase 6 — Done
+Report:
+- One-sentence summary of what was implemented
+- List of files changed
+- Tests: how many added, all passing?
+- Issues found and fixed during review
+- Anything user should know or verify manually
+EOF
+
 # ── Archon CLI install ────────────────────────────────────────────────────────
-if ! command -v archon &>/dev/null; then
+if ! command -v archon &>/dev/null && [ ! -f "$HOME/.local/bin/archon" ]; then
   echo "Installing Archon CLI..."
-  curl -fsSL https://archon.diy/install | bash
-  echo "Archon CLI installed."
+  mkdir -p "$HOME/.local/bin"
+  ARCH=$(uname -m)
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
+    ARCHON_BINARY="archon-${OS}-arm64"
+  else
+    ARCHON_BINARY="archon-${OS}-x64"
+  fi
+  curl -fsSL "https://github.com/coleam00/Archon/releases/latest/download/${ARCHON_BINARY}" \
+    -o "$HOME/.local/bin/archon" && chmod +x "$HOME/.local/bin/archon"
+  echo "Archon CLI installed to ~/.local/bin/archon"
+  echo "Ensure ~/.local/bin is in your PATH (add to ~/.zshrc or ~/.bashrc):"
+  echo '  export PATH="$HOME/.local/bin:$PATH"'
 else
-  echo "Archon CLI already installed: $(archon --version 2>/dev/null || echo 'version unknown')"
+  echo "Archon CLI already installed"
 fi
 
 # ── Archon config — point to Claude binary ────────────────────────────────────
