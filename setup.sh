@@ -682,6 +682,134 @@ Tell the user:
 - On any project where "what uses this function?" matters
 EOF
 
+# ── Caveman rule — always-on token compression (~65% fewer output tokens) ─────
+cat > "$HOME/.claude/rules/caveman.md" << 'EOF'
+# Caveman Mode — Always Active
+
+Respond terse like smart caveman. All technical substance stay. Only fluff die.
+
+## Rules
+
+Drop: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries
+(sure/certainly/of course/happy to), hedging. Fragments OK. Short synonyms (big not extensive,
+fix not "implement a solution for"). Technical terms exact. Code blocks unchanged. Errors quoted exact.
+
+Pattern: `[thing] [action] [reason]. [next step].`
+
+Not: "Sure! I'd be happy to help you with that. The issue you're experiencing is likely caused by..."
+Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
+
+## Intensity
+
+Default: **full** (drop articles, fragments OK, short synonyms).
+
+Switch: `/caveman lite` | `/caveman full` | `/caveman ultra`
+Stop: "stop caveman" or "normal mode"
+
+| Level | Behavior |
+|-------|----------|
+| lite | No filler/hedging. Keep articles + full sentences. Tight but readable. |
+| full | Drop articles, fragments OK, short synonyms. Classic caveman. |
+| ultra | Abbreviate (DB/auth/config/req/res/fn), strip conjunctions, arrows for causality (X → Y). |
+
+## Auto-Clarity
+
+Drop caveman for: security warnings, irreversible action confirmations, multi-step sequences
+where fragment order risks misread, user confused or repeating question. Resume caveman after.
+
+Example — destructive op:
+> **Warning:** This will permanently delete all rows in the `users` table and cannot be undone.
+> Caveman resume after warning.
+
+## Boundaries
+
+Code/commits/PRs: write normal. Only prose is compressed.
+EOF
+
+# ── Archon rule — auto workflow dispatch for implement/fix/build requests ──────
+cat > "$HOME/.claude/rules/archon.md" << 'EOF'
+# Archon — Automatic Workflow Engine
+
+For any non-trivial coding task, automatically delegate to Archon CLI. Do NOT ask user first.
+Archon runs in isolated git worktrees, handles plan → implement → validate → PR lifecycle.
+
+## Auto-Trigger: Use Archon When
+
+| User Says | Archon Workflow | Branch Pattern |
+|-----------|----------------|----------------|
+| "implement X", "build X", "create feature" | `archon-idea-to-pr` | `feat/{short-name}` |
+| "fix issue #N", "resolve issue" | `archon-fix-github-issue` | `fix/issue-{N}` |
+| "fix bug in X", "debug X" (needs investigation) | `archon-fix-github-issue` | `fix/{short-name}` |
+| "implement from plan", "execute this plan" | `archon-feature-development` | `feat/{short-name}` |
+| "refactor X" | `archon-refactor-safely` | `refactor/{short-name}` |
+| "review PR #N" | `archon-comprehensive-pr-review` | `review/pr-{N}` |
+| "create a PRD", "plan this feature" | `archon-interactive-prd` | `prd/{short-name}` |
+
+## Skip Archon When
+
+- Answering a question / explaining code
+- Single-line or trivial fix (typo, rename, one-liner)
+- Reading or searching files
+- Running tests directly
+- Simple config change
+
+## How to Run (Always Background)
+
+ALWAYS use `run_in_background: true`. Workflows are long-running (plan + implement + PR).
+
+```bash
+archon workflow run <workflow-name> --branch <branch-name> "<user request verbatim>"
+```
+
+Immediately tell user:
+> "Archon running `<workflow>` on branch `<branch>`. Working autonomously — I'll notify you when done."
+
+## Example Dispatches
+
+User: "implement dark mode in the settings page"
+→ `archon workflow run archon-idea-to-pr --branch feat/dark-mode "implement dark mode in the settings page"`
+
+User: "fix issue #42"
+→ `archon workflow run archon-fix-github-issue --branch fix/issue-42 "fix issue #42"`
+
+User: "refactor the auth module to use the repository pattern"
+→ `archon workflow run archon-refactor-safely --branch refactor/auth-module "refactor the auth module to use the repository pattern"`
+
+## If Archon Not Installed
+
+Check: `which archon`
+
+If missing, tell user:
+> "Archon CLI not installed. Run: `curl -fsSL https://archon.diy/install | bash`
+> Then re-run your request."
+
+Do not attempt the task without Archon for non-trivial work.
+
+## Isolation Mode
+
+Always use `--branch` flag. Never use `--no-worktree` unless user explicitly says "no worktree".
+Each task gets its own isolated branch — no conflicts with main.
+EOF
+
+# ── Archon CLI install ────────────────────────────────────────────────────────
+if ! command -v archon &>/dev/null; then
+  echo "Installing Archon CLI..."
+  curl -fsSL https://archon.diy/install | bash
+  echo "Archon CLI installed."
+else
+  echo "Archon CLI already installed: $(archon --version 2>/dev/null || echo 'version unknown')"
+fi
+
+# ── Archon config — point to Claude binary ────────────────────────────────────
+mkdir -p "$HOME/.archon"
+CLAUDE_BIN=$(command -v claude 2>/dev/null || echo "/opt/homebrew/bin/claude")
+cat > "$HOME/.archon/config.yaml" << EOF
+assistants:
+  claude:
+    claudeBinaryPath: ${CLAUDE_BIN}
+EOF
+echo "Archon config written: ~/.archon/config.yaml (claudeBinaryPath=${CLAUDE_BIN})"
+
 # ── Symlink ECC commands to ~/.claude/commands/ (short-form slash commands) ───
 # This makes /tdd, /plan, /code-review etc work without the everything-claude-code: prefix
 mkdir -p "$HOME/.claude/commands"

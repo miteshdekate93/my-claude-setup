@@ -683,4 +683,130 @@ Tell the user:
 - On any project where "what uses this function?" matters
 '@ | Set-Content -Encoding UTF8 "$commandsDir\gitnexus-init.md"
 
+# ── Caveman rule — always-on token compression (~65% fewer output tokens) ─────
+@'
+# Caveman Mode — Always Active
+
+Respond terse like smart caveman. All technical substance stay. Only fluff die.
+
+## Rules
+
+Drop: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries
+(sure/certainly/of course/happy to), hedging. Fragments OK. Short synonyms (big not extensive,
+fix not "implement a solution for"). Technical terms exact. Code blocks unchanged. Errors quoted exact.
+
+Pattern: `[thing] [action] [reason]. [next step].`
+
+Not: "Sure! I'd be happy to help you with that. The issue you're experiencing is likely caused by..."
+Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
+
+## Intensity
+
+Default: **full** (drop articles, fragments OK, short synonyms).
+
+Switch: `/caveman lite` | `/caveman full` | `/caveman ultra`
+Stop: "stop caveman" or "normal mode"
+
+| Level | Behavior |
+|-------|----------|
+| lite | No filler/hedging. Keep articles + full sentences. Tight but readable. |
+| full | Drop articles, fragments OK, short synonyms. Classic caveman. |
+| ultra | Abbreviate (DB/auth/config/req/res/fn), strip conjunctions, arrows for causality (X -> Y). |
+
+## Auto-Clarity
+
+Drop caveman for: security warnings, irreversible action confirmations, multi-step sequences
+where fragment order risks misread, user confused or repeating question. Resume caveman after.
+
+## Boundaries
+
+Code/commits/PRs: write normal. Only prose is compressed.
+'@ | Set-Content -Encoding UTF8 "$rulesDir\caveman.md"
+
+# ── Archon rule — auto workflow dispatch for implement/fix/build requests ──────
+@'
+# Archon — Automatic Workflow Engine
+
+For any non-trivial coding task, automatically delegate to Archon CLI. Do NOT ask user first.
+Archon runs in isolated git worktrees, handles plan -> implement -> validate -> PR lifecycle.
+
+## Auto-Trigger: Use Archon When
+
+| User Says | Archon Workflow | Branch Pattern |
+|-----------|----------------|----------------|
+| "implement X", "build X", "create feature" | `archon-idea-to-pr` | `feat/{short-name}` |
+| "fix issue #N", "resolve issue" | `archon-fix-github-issue` | `fix/issue-{N}` |
+| "fix bug in X", "debug X" (needs investigation) | `archon-fix-github-issue` | `fix/{short-name}` |
+| "implement from plan", "execute this plan" | `archon-feature-development` | `feat/{short-name}` |
+| "refactor X" | `archon-refactor-safely` | `refactor/{short-name}` |
+| "review PR #N" | `archon-comprehensive-pr-review` | `review/pr-{N}` |
+| "create a PRD", "plan this feature" | `archon-interactive-prd` | `prd/{short-name}` |
+
+## Skip Archon When
+
+- Answering a question / explaining code
+- Single-line or trivial fix (typo, rename, one-liner)
+- Reading or searching files
+- Running tests directly
+- Simple config change
+
+## How to Run (Always Background)
+
+ALWAYS use `run_in_background: true`. Workflows are long-running (plan + implement + PR).
+
+```bash
+archon workflow run <workflow-name> --branch <branch-name> "<user request verbatim>"
+```
+
+Immediately tell user:
+> "Archon running `<workflow>` on branch `<branch>`. Working autonomously — I'll notify you when done."
+
+## Example Dispatches
+
+User: "implement dark mode in the settings page"
+-> `archon workflow run archon-idea-to-pr --branch feat/dark-mode "implement dark mode in the settings page"`
+
+User: "fix issue #42"
+-> `archon workflow run archon-fix-github-issue --branch fix/issue-42 "fix issue #42"`
+
+User: "refactor the auth module to use the repository pattern"
+-> `archon workflow run archon-refactor-safely --branch refactor/auth-module "refactor the auth module to use the repository pattern"`
+
+## If Archon Not Installed
+
+Check: `where.exe archon`
+
+If missing, tell user:
+> "Archon CLI not installed. Run in PowerShell: `irm https://archon.diy/install.ps1 | iex`
+> Then re-run your request."
+
+## Isolation Mode
+
+Always use `--branch` flag. Never use `--no-worktree` unless user explicitly says "no worktree".
+'@ | Set-Content -Encoding UTF8 "$rulesDir\archon.md"
+
+# ── Archon CLI install ────────────────────────────────────────────────────────
+if (-not (Get-Command archon -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing Archon CLI..."
+    try {
+        irm https://archon.diy/install.ps1 | iex
+        Write-Host "Archon CLI installed."
+    } catch {
+        Write-Host "Warning: Archon install failed. Run manually: irm https://archon.diy/install.ps1 | iex"
+    }
+} else {
+    Write-Host "Archon CLI already installed."
+}
+
+# ── Archon config — point to Claude binary ────────────────────────────────────
+$archonDir = "$env:USERPROFILE\.archon"
+New-Item -ItemType Directory -Force -Path $archonDir | Out-Null
+$claudeBin = (Get-Command claude -ErrorAction SilentlyContinue)?.Source ?? "$env:USERPROFILE\.local\bin\claude.exe"
+@"
+assistants:
+  claude:
+    claudeBinaryPath: $claudeBin
+"@ | Set-Content -Encoding UTF8 "$archonDir\config.yaml"
+Write-Host "Archon config written: $archonDir\config.yaml"
+
 Write-Host "Setup complete! Now restart Claude Code."
