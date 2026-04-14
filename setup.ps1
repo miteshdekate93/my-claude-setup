@@ -791,6 +791,7 @@ Always use `--branch` flag. Never use `--no-worktree` unless user explicitly say
 description: >
   Autonomous full dev pipeline in one command. Routes complex tasks to Archon (plan+implement+validate+PR)
   or runs inline pipeline (plan -> TDD -> implement -> code-review -> security). Zero babysitting.
+  Gracefully degrades if GitHub not authenticated — does the code work, outputs git commands to run manually.
 argument-hint: "<what to implement, fix, or build>"
 ---
 
@@ -801,56 +802,104 @@ Caveman compression is active — responses terse but technically precise.
 
 ---
 
-## Step 1 — Classify (do this silently, then act)
+## Step 0 — Auth Check (always run first, silently)
 
-| Task type | Route |
-|-----------|-------|
-| New feature / "implement X" / "build X" / "add X" | -> **Archon: `archon-piv-loop`** |
-| Bug fix / "fix issue #N" / "resolve #N" | -> **Archon: `archon-fix-github-issue`** |
-| "fix bug in X" (no issue #, needs investigation) | -> **Archon: `archon-fix-github-issue`** |
-| "review PR #N" | -> **Archon: `archon-smart-pr-review`** |
-| Refactor / rename / reorganize | -> **Inline pipeline** |
-| Simple <=2-file change or one-liner fix | -> **Inline pipeline** |
-| Question / explanation | -> Answer directly, skip pipeline |
+```bash
+gh auth status 2>/dev/null && echo "GH_AUTHED" || echo "GH_NOT_AUTHED"
+```
+
+- GH_AUTHED -> Archon path available for features/bugs
+- GH_NOT_AUTHED -> force Inline Pipeline for ALL task types, skip Archon entirely
 
 ---
 
-## Route A — Archon (background, autonomous, creates PR)
+## Step 1 — Classify
 
-Run with `run_in_background: true` in Bash tool. Never block the conversation.
-
-After dispatching, report one line to user:
-> "Archon: `<workflow>` dispatched -> branch `<branch>`. Plan+implement+PR running autonomously. Monitor: `archon workflow status`"
-
-**Stop here** — Archon handles the full lifecycle. Do not re-implement in this session.
+| Task type | Authenticated | Not authenticated |
+|-----------|--------------|-------------------|
+| New feature / implement / build / add | Archon: archon-piv-loop | Inline pipeline |
+| Bug fix / fix issue #N / resolve | Archon: archon-fix-github-issue | Inline pipeline |
+| Review PR #N | Archon: archon-smart-pr-review | Inline pipeline (read-only review) |
+| Refactor / rename / reorganize | Inline pipeline | Inline pipeline |
+| Simple <=2-file fix | Inline pipeline | Inline pipeline |
+| Question / explanation | Answer directly | Answer directly |
 
 ---
 
-## Route B — Inline Pipeline (refactors, simple tasks, no PR needed)
+## Route A — Archon (authenticated only, background, creates PR)
 
-Work through all phases in order. One-line status update at each phase start.
+Run with run_in_background: true. Never block the conversation.
 
-### Phase 1 — Plan
-Break down the task: what files change, what new behavior is, how to verify, any risks.
+```bash
+# Feature:
+archon workflow run archon-piv-loop --branch feat/<short-slug> "$ARGUMENTS"
+
+# Bug fix:
+archon workflow run archon-fix-github-issue --branch fix/<short-slug> "$ARGUMENTS"
+
+# PR review:
+archon workflow run archon-smart-pr-review --branch review/pr-<N> "$ARGUMENTS"
+```
+
+Report to user:
+> "Archon: <workflow> -> branch <branch>. Running autonomously. Monitor: archon workflow status"
+
+Stop here — Archon handles the rest.
+
+---
+
+## Route B — Inline Pipeline (always available, no GitHub needed)
+
+Work through all phases. One-line status per phase. No skipping.
+
+### Phase 1 — Branch
+Create a local branch first:
+git checkout -b <type>/<short-slug>
+
+### Phase 2 — Plan
+What files change and why. Before vs after behavior. How to verify. Risks.
 Write numbered list. Show it. Confirm before proceeding.
 
-### Phase 2 — Tests First (RED)
-Write tests for expected behavior. Run them. Must FAIL before writing implementation.
+### Phase 3 — Tests First (RED)
+Write failing tests. Run them — must FAIL before writing implementation.
 
-### Phase 3 — Implement (GREEN)
+### Phase 4 — Implement (GREEN)
 Minimal code to pass tests. Functions <=20 lines, immutable patterns, explicit error handling.
 Run tests — all must pass before continuing.
 
-### Phase 4 — Code Review
+### Phase 5 — Code Review
 Check all changed files: unclear names, missing error handling, hardcoded values, logic errors.
 Fix CRITICAL/HIGH. Report MEDIUM but continue.
 
-### Phase 5 — Security (conditional)
-Skip: pure logic, UI, config. Run: auth, user input, APIs, DB, secrets.
+### Phase 6 — Security (conditional)
+Skip: pure logic, UI, config, renaming.
+Run: auth, user input, APIs, DB, file I/O, secrets.
 Check: no hardcoded secrets, inputs validated, SQL parameterized, no data leaks.
 
-### Phase 6 — Done
-One-sentence summary. Files changed. Tests added. Issues fixed.
+### Phase 7 — Done + Git Commands
+
+Report summary. Then always output these commands:
+
+```
+# Review what changed:
+git diff main
+
+# Commit:
+git add -A
+git commit -m "<type>: <short description>"
+
+# Push (needs gh auth login or git credentials):
+git push -u origin <branch-name>
+
+# Create PR (needs gh auth login):
+gh pr create --title "<title>" --body "<summary>"
+
+# If not authenticated yet:
+gh auth login
+# then re-run push and pr create above
+```
+
+Always output these commands even if GitHub is authenticated — user may want to review before pushing.
 '@ | Set-Content -Encoding UTF8 "$commandsDir\task.md"
 
 # ── Archon CLI install ────────────────────────────────────────────────────────
@@ -881,4 +930,29 @@ assistants:
 "@ | Set-Content -Encoding UTF8 "$archonDir\config.yaml"
 Write-Host "Archon config written: $archonDir\config.yaml"
 
+Write-Host ""
+Write-Host "================================================"
 Write-Host "Setup complete! Now restart Claude Code."
+Write-Host ""
+Write-Host "Checking GitHub auth status..."
+$ghInstalled = Get-Command gh -ErrorAction SilentlyContinue
+if ($ghInstalled) {
+    $ghStatus = gh auth status 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✓ GitHub authenticated — Archon can push branches and create PRs automatically."
+    } else {
+        Write-Host "⚠ GitHub not authenticated."
+        Write-Host ""
+        Write-Host "  /task will still do all code work (branch, implement, test, review)."
+        Write-Host "  It just can't push or create PRs automatically."
+        Write-Host "  At end of every /task it outputs the exact git commands to run manually."
+        Write-Host ""
+        Write-Host "  To enable full automation, run once:"
+        Write-Host "    gh auth login"
+        Write-Host "  (choose GitHub.com -> HTTPS -> Login with a web browser)"
+    }
+} else {
+    Write-Host "⚠ gh CLI not found. Install from: https://cli.github.com/"
+    Write-Host "  Then run: gh auth login"
+}
+Write-Host "================================================"
