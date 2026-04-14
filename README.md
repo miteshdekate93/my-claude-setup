@@ -13,6 +13,21 @@ Installs:
 
 ---
 
+## After Running setup.sh: One-Time Auth (optional but recommended)
+
+`setup.sh` does not require GitHub auth. But for full automation (auto push + PR creation), run once after setup:
+
+```bash
+gh auth login
+# Choose: GitHub.com → HTTPS → Login with a web browser
+```
+
+**Without `gh auth login`:** `/task` still does all code work — plans, creates a local branch, writes tests, implements, reviews. At the end it outputs the exact git commands to push and create the PR manually.
+
+**With `gh auth login`:** `/task` dispatches to Archon which handles push + PR creation autonomously.
+
+---
+
 ## How To Use
 
 ### On Mac/Linux

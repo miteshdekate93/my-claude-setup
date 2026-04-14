@@ -944,4 +944,23 @@ else
   echo "Warning: ECC commands not found at $ECC_COMMANDS (install ECC plugin first)"
 fi
 
+# ── GitHub auth check ────────────────────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Setup complete!"
+echo ""
+echo "Checking GitHub auth status..."
+if command -v gh &>/dev/null && gh auth status &>/dev/null; then
+  echo "✓ GitHub authenticated — Archon can push branches and create PRs automatically."
+else
+  echo "⚠ GitHub not authenticated."
+  echo ""
+  echo "  /task will still do all the code work (branch, implement, test, review)."
+  echo "  It just can't push or create PRs automatically."
+  echo "  At the end of every /task it outputs the exact git commands to run manually."
+  echo ""
+  echo "  To enable full automation, run once:"
+  echo "    gh auth login"
+  echo "  (choose GitHub.com → HTTPS → Login with a web browser)"
+fi
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
