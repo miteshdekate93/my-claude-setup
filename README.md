@@ -4,8 +4,9 @@ One-command setup to restore your full Claude Code configuration on any new mach
 
 Installs:
 - `~/.claude/settings.json` — voice, ECC marketplace, plugins
-- `~/.claude/rules/` — 11 rule files (agents, coding style, git workflow, testing, security, caveman, archon)
+- `~/.claude/rules/` — 13 rule files (agents, coding style, git workflow, testing, security, caveman, archon, memory-crystallization, context-budget)
 - `~/.claude/commands/task.md` — `/task` slash command (full autonomous pipeline)
+- `~/.claude/memory/L3/` — SOP memory directory (fills up as you use `/task`)
 - `CLAUDE.md` — project workflow instructions (written to current directory)
 - `tasks/todo.md` and `tasks/lessons.md` — task tracking files (written to current directory)
 - Archon CLI — automatic workflow engine for implement/fix/build tasks
@@ -66,9 +67,12 @@ After running either script, restart Claude Code.
 | `~/.claude/rules/performance.md` | Model selection, context window, plan mode |
 | `~/.claude/rules/security.md` | Security checklist and response protocol |
 | `~/.claude/rules/testing.md` | TDD workflow, 80% coverage requirement |
-| `~/.claude/rules/caveman.md` | Always-on token compression (~65% fewer tokens, auto-active) |
+| `~/.claude/rules/caveman.md` | Always-on token compression + hedge reducer (~65% fewer tokens) |
 | `~/.claude/rules/archon.md` | Auto-dispatch implement/fix/build requests to Archon workflows |
-| `~/.claude/commands/task.md` | `/task` — full pipeline: plan → TDD → implement → review → security |
+| `~/.claude/rules/memory-crystallization.md` | L3 SOP memory: search before tasks, crystallize after — skip cold-start reasoning |
+| `~/.claude/rules/context-budget.md` | Token efficiency: batch tool calls, compress old results, trim triggers |
+| `~/.claude/commands/task.md` | `/task` — full pipeline: stack detect → L3 recall → plan → TDD → implement → review → security → SOP |
+| `~/.claude/memory/L3/` | SOP memory store — grows with every non-trivial task |
 | `~/.archon/config.yaml` | Archon config pointing to Claude binary |
 | `./CLAUDE.md` | Project-level workflow instructions |
 | `./tasks/todo.md` | Task tracking |
@@ -78,11 +82,29 @@ After running either script, restart Claude Code.
 
 ## How It Works
 
-### Token Compression (Caveman — always on)
+### Token Compression (Caveman + Hedge Reducer — always on)
 
 Every Claude response is automatically compressed ~65% by dropping filler words, articles, and pleasantries while keeping full technical accuracy. Code, commits, and PRs are written normally — only prose is compressed. Longer sessions, lower cost, faster responses.
 
+The **hedge reducer** strips an additional layer: "I think", "maybe", "it seems", "perhaps", "you might want to", "certainly" — all replaced with direct assertions. ~15% additional output token savings.
+
 Switch modes with `/caveman lite`, `/caveman full`, `/caveman ultra`. Stop with "normal mode".
+
+### L3 SOP Memory (grows over time)
+
+Every non-trivial `/task` saves a reusable SOP to `~/.claude/memory/L3/`. On the next similar task, Claude recalls the SOP instead of cold-reasoning from scratch.
+
+**First task:** normal speed. **10th similar task:** 2-3x faster, proven pattern reused.
+
+SOPs accumulate: `node-jwt-auth.md`, `go-grpc-service.md`, `python-db-migration.md`, etc.
+
+### Context Budget (6x token efficiency)
+
+Rules inspired by GenericAgent's architecture:
+- Batch all independent tool calls in one message (parallel execution)
+- Never re-read files already in context
+- Compress old tool results instead of quoting verbatim
+- Spawn subagents when context exceeds 10 turns of heavy work
 
 ### `/task` — One Command for Everything
 
@@ -94,7 +116,7 @@ Switch modes with `/caveman lite`, `/caveman full`, `/caveman ultra`. Stop with 
 /task review PR #17
 ```
 
-`/task` classifies the request and routes automatically:
+`/task` auto-detects your project stack (Node, Go, Rust, Python, Kotlin, Flutter) and classifies the request to route automatically:
 
 | Request type | What happens |
 |-------------|-------------|

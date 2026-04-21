@@ -380,6 +380,116 @@ MANDATORY workflow:
 - **tdd-guide** - Use PROACTIVELY for new features, enforces write-tests-first
 EOF
 
+cat > "$HOME/.claude/rules/memory-crystallization.md" << 'EOF'
+# Memory Crystallization (L3 Skill SOPs)
+
+Inspired by GenericAgent's self-crystallization pattern: proven task solutions saved as SOPs,
+recalled on similar tasks to skip cold-start reasoning. Compound savings after ~10 tasks.
+
+## At Task Start — Search L3 Memory
+
+Before starting any non-trivial task, search for relevant SOPs:
+
+```bash
+ls ~/.claude/memory/L3/ 2>/dev/null | grep -i "<keyword>"
+```
+
+Keywords: match domain of task (auth, api, database, testing, migration, deploy, etc.)
+
+- SOP found → read it, use as starting pattern, skip cold reasoning
+- No match → proceed normally, crystallize at end
+
+## At Task End — Crystallize New SOP
+
+After completing any non-trivial task (3+ implementation steps):
+1. Distill what worked into a reusable SOP
+2. Save to `~/.claude/memory/L3/<stack>-<domain>-<slug>.md`
+3. Keep it short — steps + gotchas only, no boilerplate
+
+Skip crystallization for: one-liners, config tweaks, pure Q&A, trivial renames.
+
+## SOP Format
+
+```markdown
+# SOP: <domain> — <what this covers>
+Stack: <language/framework>
+Last used: <YYYY-MM-DD>
+
+## Steps
+1. ...
+2. ...
+
+## Gotchas
+- ...
+```
+
+## Examples
+
+- `~/.claude/memory/L3/node-jwt-auth.md` — JWT middleware setup in Express
+- `~/.claude/memory/L3/go-grpc-service.md` — gRPC service scaffold in Go
+- `~/.claude/memory/L3/python-alembic-migration.md` — Alembic DB migration pattern
+- `~/.claude/memory/L3/react-context-state.md` — Context + useReducer state pattern
+
+## Directory
+
+All SOPs live in: `~/.claude/memory/L3/`
+EOF
+
+cat > "$HOME/.claude/rules/context-budget.md" << 'EOF'
+# Context Budget Management
+
+Inspired by GenericAgent's 6x token efficiency. Stay lean, batch aggressively, compress early.
+
+## File Reading
+
+- Never re-read a file already read in this session — check conversation context first
+- Read only needed lines (use offset + limit, not full file reads)
+- Batch all independent file reads in one message (parallel tool calls)
+- Prefer grep/glob over reading entire files for targeted searches
+
+## Tool Call Batching
+
+ALWAYS batch independent tool calls in one message. Never sequential when parallel works.
+
+```
+GOOD: Read file A + Read file B + Run test → one message, 3 tool calls
+BAD:  Read file A → wait → Read file B → wait → Run test
+```
+
+Never re-run the same command twice. Cache results mentally.
+
+## Context Trimming Triggers
+
+When session is long (10+ tool-use turns or feels heavy):
+- Stop re-reading files already seen
+- Compress status updates to one sentence
+- Prefer diffs over full file reads for code review
+- Spawn subagents for new sub-tasks to keep main context clean
+
+## Summarize, Don't Quote
+
+Never paste tool output verbatim into prose. Summarize findings:
+
+```
+BAD:  "The output of git status was: On branch main\n Changes not staged..."
+GOOD: "2 files modified, not staged."
+```
+
+## What NOT to Do
+
+- Don't read CLAUDE.md or rule files at session start (already loaded)
+- Don't re-run `git status` after every file edit (batch at end)
+- Don't repeat the user's request back before answering
+- Don't summarize what you just did (user can see tool calls)
+- Don't add trailing "Summary of changes" paragraphs after edits
+
+## Turn Budget Check
+
+Every 10 tool-use turns: assess context bloat.
+- Bloating → spawn subagent for next chunk
+- Clean → continue in main session
+EOF
+
 # ── CLAUDE.md in current directory ───────────────────────────────────────────
 cat > "$PWD/CLAUDE.md" << 'EOF'
 # Workflow Orchestration
@@ -721,6 +831,28 @@ Example — destructive op:
 > **Warning:** This will permanently delete all rows in the `users` table and cannot be undone.
 > Caveman resume after warning.
 
+## Hedge Reducer (Always Active)
+
+Strip these from all prose — never say them:
+
+| Drop | Replace with |
+|------|-------------|
+| "I think" / "I believe" / "I feel" | state directly |
+| "maybe" / "perhaps" / "possibly" / "probably" | drop or assert |
+| "it seems" / "it appears" / "it looks like" | state the fact |
+| "I'd suggest" / "you might want to" / "consider" | imperative form |
+| "certainly" / "of course" / "absolutely" / "definitely" | drop |
+| "just" / "simply" / "basically" / "essentially" | drop |
+| "I'm happy to" / "I'd be glad to" / "Let me help you" | drop preamble |
+| "Great question" / "Excellent point" / "Good idea" | drop entirely |
+| "As an AI" / "As a language model" | never say |
+
+Examples:
+- "You might want to use X" → "Use X"
+- "I think the issue is Y" → "Issue: Y"
+- "It seems like Z is broken" → "Z broken"
+- "Perhaps consider adding tests" → "Add tests"
+
 ## Boundaries
 
 Code/commits/PRs: write normal. Only prose is compressed.
@@ -797,6 +929,7 @@ cat > "$HOME/.claude/commands/task.md" << 'EOF'
 description: >
   Autonomous full dev pipeline in one command. Routes complex tasks to Archon (plan+implement+validate+PR)
   or runs inline pipeline (plan → TDD → implement → code-review → security). Zero babysitting.
+  Gracefully degrades if GitHub not authenticated — does the code work, outputs git commands to run manually.
 argument-hint: "<what to implement, fix, or build>"
 ---
 
@@ -807,26 +940,56 @@ Caveman compression is active — responses terse but technically precise.
 
 ---
 
-## Step 1 — Classify (do this silently, then act)
+## Step 0 — Context Load (silent, always)
 
-| Task type | Route |
-|-----------|-------|
-| New feature / "implement X" / "build X" / "add X" | → **Archon: `archon-piv-loop`** |
-| Bug fix / "fix issue #N" / "resolve #N" | → **Archon: `archon-fix-github-issue`** |
-| "fix bug in X" (no issue #, needs investigation) | → **Archon: `archon-fix-github-issue`** |
-| "review PR #N" | → **Archon: `archon-smart-pr-review`** |
-| Refactor / rename / reorganize | → **Inline pipeline** |
-| Simple ≤2-file change or one-liner fix | → **Inline pipeline** |
-| Question / explanation | → Answer directly, skip pipeline |
+### Detect project stack
+Check current dir + parents for these files:
+
+| File | Stack | Review agent for Phase 5 |
+|------|-------|--------------------------|
+| `package.json` / `bun.lockb` / `deno.json` | Node/TypeScript | `/typescript-review` |
+| `go.mod` | Go | `/go-review` |
+| `Cargo.toml` | Rust | `/rust-review` |
+| `requirements.txt` / `pyproject.toml` / `setup.py` | Python | `/python-review` |
+| `build.gradle` / `settings.gradle` | Kotlin/Android | `/kotlin-review` |
+| `pubspec.yaml` | Flutter/Dart | `/flutter-dart-code-review` |
+| None detected | Generic | manual review |
+
+Store detected stack — auto-invoke matching agent in Phase 5.
+
+### Search L3 memory for relevant SOPs
+```bash
+ls ~/.claude/memory/L3/ 2>/dev/null | grep -i "<keyword-from-task>"
+```
+If SOP found: read it and use as starting pattern, skip cold reasoning.
+
+### Auth check
+```bash
+gh auth status 2>/dev/null && echo "GH_AUTHED" || echo "GH_NOT_AUTHED"
+```
+- `GH_NOT_AUTHED` → force Inline Pipeline for all task types
 
 ---
 
-## Route A — Archon (background, autonomous, creates PR)
+## Step 1 — Classify
 
-Run with `run_in_background: true` in Bash tool. Never block the conversation.
+| Task type | Authenticated | Not authenticated |
+|-----------|--------------|-------------------|
+| New feature / implement / build / add | Archon: `archon-piv-loop` | Inline pipeline |
+| Bug fix / fix issue #N / resolve | Archon: `archon-fix-github-issue` | Inline pipeline |
+| Review PR #N | Archon: `archon-smart-pr-review` | Inline pipeline (read-only review, no push) |
+| Refactor / rename / reorganize | Inline pipeline | Inline pipeline |
+| Simple ≤2-file fix | Inline pipeline | Inline pipeline |
+| Question / explanation | Answer directly | Answer directly |
+
+---
+
+## Route A — Archon (authenticated only, background, creates PR)
+
+Run with `run_in_background: true`. Never block the conversation.
 
 ```bash
-# Feature / new implementation:
+# Feature:
 archon workflow run archon-piv-loop --branch feat/<short-slug> "$ARGUMENTS"
 
 # Bug fix:
@@ -836,70 +999,104 @@ archon workflow run archon-fix-github-issue --branch fix/<short-slug> "$ARGUMENT
 archon workflow run archon-smart-pr-review --branch review/pr-<N> "$ARGUMENTS"
 ```
 
-After dispatching, report one line to user:
-> "Archon: `<workflow>` dispatched → branch `<branch>`. Plan+implement+PR running autonomously. Monitor: `archon workflow status`"
+Report to user:
+> "Archon: `<workflow>` → branch `<branch>`. Running autonomously. Monitor: `archon workflow status`"
 
-**Stop here** — Archon handles the full lifecycle. Do not re-implement in this session.
+Stop here — Archon handles the rest.
 
 ---
 
-## Route B — Inline Pipeline (refactors, simple tasks, no PR needed)
+## Route B — Inline Pipeline (always available, no GitHub needed)
 
-Work through all phases in order. One-line status update at each phase start.
+Work through all phases. One-line status per phase. No skipping.
 
-### Phase 1 — Plan
+### Phase 1 — Branch
+Create a local branch first:
+```bash
+git checkout -b <type>/<short-slug>
+```
+
+### Phase 2 — Plan
 Break down the task:
 - What files change and why
-- What the new behavior is (before vs after)
-- How to verify it works
-- Any risks or dependencies
+- Before vs after behavior
+- How to verify
+- Risks / dependencies
 
-Write a numbered list. Show it. Confirm it covers the request fully before proceeding.
+Write numbered list. Show it. Confirm before proceeding.
 
-### Phase 2 — Tests First (RED)
-Write tests that describe the expected behavior. Run them. They must **FAIL** before you write implementation code.
-If tests pass before implementation: tests are wrong — fix them.
-Cover: happy path, error cases, edge cases relevant to the task.
+### Phase 3 — Tests First (RED)
+Write failing tests covering expected behavior. Run them — must FAIL.
+If tests pass before implementation: tests are wrong, fix them.
 
-### Phase 3 — Implement (GREEN)
-Write minimal code to make all tests pass.
-Rules:
-- Functions ≤20 lines, one responsibility each
-- No mutation — create new objects, never modify in-place
-- Explicit error handling — never swallow errors silently
-- No hardcoded values — use constants or config
+### Phase 4 — Implement (GREEN)
+Minimal code to pass tests.
+- Functions ≤20 lines, one responsibility
+- No mutation — new objects, never modify in-place
+- Explicit error handling — never swallow silently
+- No hardcoded values — constants or config
 
-Run tests after implementing. All must pass before continuing.
+Run tests. All must pass before continuing.
 
-### Phase 4 — Code Review
-Review all changed files. Check for:
-- Unclear names (variables, functions, files)
-- Missing error handling
-- Hardcoded values or magic numbers
-- Logic errors, missing edge cases
-- Unnecessary complexity (do simplest thing that works)
+### Phase 5 — Code Review (stack-aware)
+Use the review agent detected in Step 0:
+- Node/TS → `/typescript-review` | Go → `/go-review` | Rust → `/rust-review`
+- Python → `/python-review` | Kotlin → `/kotlin-review` | Flutter → `/flutter-dart-code-review`
+- Unknown → manual review
 
-Fix all CRITICAL and HIGH issues. Report MEDIUM issues but continue.
+Check all changed files:
+- Unclear names, missing error handling, hardcoded values
+- Logic errors, missing edge cases, over-engineering
 
-### Phase 5 — Security Check (conditional)
-**Skip** if: pure logic change, UI styling, config tweak, renaming.
-**Run** if: auth, user input processing, API calls, database queries, file I/O, secret handling.
+Fix CRITICAL/HIGH. Report MEDIUM but continue.
 
-Check:
-- No hardcoded secrets or API keys
-- All user inputs validated before use
-- SQL queries parameterized (no string concatenation)
-- No sensitive data in logs or error messages
-- Auth/authorization verified where applicable
+### Phase 6 — Security (conditional)
+Skip: pure logic, UI styling, config, renaming.
+Run: auth, user input, APIs, DB, file I/O, secrets.
+- No hardcoded secrets
+- Inputs validated
+- SQL parameterized
+- No data leaks in logs/errors
 
-### Phase 6 — Done
-Report:
-- One-sentence summary of what was implemented
-- List of files changed
-- Tests: how many added, all passing?
-- Issues found and fixed during review
-- Anything user should know or verify manually
+### Phase 7 — Crystallize SOP
+After non-trivial tasks (3+ implementation steps), save a reusable SOP:
+```bash
+mkdir -p ~/.claude/memory/L3/
+```
+Write `~/.claude/memory/L3/<stack>-<domain>-<slug>.md` with:
+- Title, stack, date, numbered steps, gotchas. Keep under 30 lines.
+
+Skip for: one-liners, config tweaks, pure Q&A.
+
+### Phase 8 — Done + Git Commands
+
+Report summary. Then always output these commands so user can push/PR manually if needed:
+
+```bash
+# Review what changed:
+git diff main
+
+# Commit:
+git add -A
+git commit -m "<type>: <short description of what was done>"
+
+# Push (needs: gh auth login OR git credentials):
+git push -u origin <branch-name>
+
+# Create PR (needs: gh auth login):
+gh pr create --title "<title>" --body "<summary of changes>"
+
+# If not authenticated yet:
+gh auth login
+# then re-run the push and pr create commands above
+```
+
+Always output these commands even if GitHub is authenticated — user may want to review before pushing.
 EOF
+
+# ── L3 memory directory ───────────────────────────────────────────────────────
+mkdir -p "$HOME/.claude/memory/L3"
+echo "L3 memory directory created: ~/.claude/memory/L3/"
 
 # ── Archon CLI install ────────────────────────────────────────────────────────
 if ! command -v archon &>/dev/null && [ ! -f "$HOME/.local/bin/archon" ]; then
